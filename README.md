@@ -10,5 +10,7 @@ Well, I liked the charater 'Officer K' acted by Ryan Gosling. So I want to make 
 
 
 ### Result
+<img src="./imgs/three-days.jpg" alt="drawing" width="500"/>
+
 
 ### Notes
