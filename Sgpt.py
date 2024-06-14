@@ -1,13 +1,13 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+import tiktoken
 
 #hyperparameters
 batch_size = 16
 block_size = 64 #maximum context length for predicitons
 learning_rate = 3e-4
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-print(128 // 4)
+vocab_size = 50257 # temp
 
 n_embed = 128
 n_head = 4
@@ -15,19 +15,6 @@ n_layer = 3
 dropout = 0.2
 
 torch.manual_seed(1357)
-
-## Read Data
-with open('.txt', 'r', encoding='utf-8') as f:
-    text = f.read()
-
-## tiktoken
-
-## Train and test split
-
-## data loading
-
-
-
 
 class Head(nn.Module):
     "one head of sef-attention"
@@ -105,7 +92,67 @@ class Block(nn.Module):
         return x
     
 
-class SadGPT(nn.Module):
+class BladeGPT(nn.Module):
 
-    def __init__(self, ):
+    def __init__(self):
         super().__init__()
+        self.wte = nn.Embedding(vocab_size, n_embed)
+        self.wpe = nn.Embedding(block_size, n_embed)
+        self.blocks =  nn.Sequential(*[Block(n_embed, n_head=n_head) for _ in range(n_layer)])
+        self.ln_f = nn.LayerNorm(n_embed)
+        self.lm_head = nn.Linear(n_embed, vocab_size)
+
+    def forward(self, idx, target=None):
+        B, T = idx.size()
+
+        tok_emb = self.wte(idx) # B, T, C
+        pos_emb = self.wpe(torch.arange(T, device=device)) # T, C
+        x = tok_emb + pos_emb # B, T, C
+        x = self.blocks(x) # B, T, C
+        x = self.ln_f(x) # B, T, C
+        logits = self.lm_head(x) # B, T, vocab_size
+        loss = None
+        if target is not None:
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), target.view(-1))
+        return logits
+    
+
+
+
+
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+## Read Data
+with open('blade-runner-2049.txt', 'r', encoding='utf-8') as f:
+    text = f.read()
+
+# print(text[:1000])
+
+
+## tiktoken
+enc = tiktoken.get_encoding('gpt2')
+tokens = enc.encode(text)
+print(len(tokens))
+
+B, T = 4, 4
+buf = torch.tensor(tokens[:B*T + 1])
+x = buf[:-1].view(B, T)
+y = buf[1:].view(B, T)
+
+x = x.to(device)
+y = y.to(device)
+
+print(x.size())
+print(y.size())
+
+
+## Train and test split
+
+## data loading
+
+## initiate model and get logits
+model = BladeGPT()
+model.to(device)
+logits, loss = model(x, y)
+
+print(loss)
+import sys; sys.exit(0)
