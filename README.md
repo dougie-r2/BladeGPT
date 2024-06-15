@@ -18,8 +18,19 @@ So I want to make a nano-scaled GPT for generate sentences that resemble the way
 - Number of Batch size should be multiple of 2 with the reason of the way GPU works
 
 ### History
-
 - 2024/06/14 
-  - Finished skeleton code for GPT 
+  - Finish skeleton code for GPT 
   - read txt file and tokenize it
   - Install tiktoken
+  
+- 2024/06/15
+  - Make a class for config
+  - Aggregate two attetion classes into one class
+  - Add some assertation statements
+  - Add a generating token code
+  
+
+
+
+### Reference
+- This repo is based on Andrej Karpathy's lecture.
