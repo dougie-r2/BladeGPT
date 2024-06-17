@@ -14,7 +14,11 @@ class gptconfig:
     n_head: int = 4
     n_embed: int = 128
 
+
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 torch.manual_seed(1357)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(1357)
 
 # class Head(nn.Module):
 #     "one head of sef-attention"
@@ -65,6 +69,7 @@ class MultiHeadAttention(nn.Module):
         assert config.n_embed % config.n_head == 0
         self.attn = nn.Linear(config.n_embed, 3 * config.n_embed)
         self.outproj = nn.Linear(config.n_embed, config.n_embed)
+        self.outproj.NANOGPT_SCLAE_INIT = 1
         self.n_head = config.n_head
         self.n_embed = config.n_embed
         self.register_buffer("mask", torch.tril(torch.ones(config.block_size, config.block_size)).view(1, 1, config.block_size, config.block_size))
@@ -96,12 +101,13 @@ class FeedForward(nn.Module):
         super().__init__()
         self.fc = nn.Linear(config.n_embed, 4 * config.n_embed)
         self.gelu = nn.GELU()
-        self.proj = nn.Linear(4 * config.n_embed, config.n_embed)
+        self.outproj = nn.Linear(4 * config.n_embed, config.n_embed)
+        self.outproj.NANOGPT_SCLAE_INIT = 1
 
     def forward(self, x):
         x = self.fc(x)
         x = self.gelu(x)
-        x= self.proj(x)
+        x= self.outproj(x)
         return x
 
 class Block(nn.Module):
@@ -133,7 +139,24 @@ class BladeGPT(nn.Module):
             ln_f = nn.LayerNorm(config.n_embed), # Final Layernorm
         ))
         
-        self.lm_head = nn.Linear(config.n_embed, config.vocab_size, bias=False) 
+        self.lm_head = nn.Linear(config.n_embed, config.vocab_size, bias=False)
+
+        # weight sharing scheme
+        self.transformer.wte.weight = self.lm_head.weight
+
+        # init params
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            std = 0.02 # 0.02 come from Xavier init
+            if hasattr(module, 'NANOGPT_SCLAE_INIT'):
+                std *= (2 * self.config.n_layer) ** -0.5
+            torch.nn.init.normal_(module.weight, mean=0.0, std=std)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, idx, target=None):
         B, T = idx.size()
@@ -150,69 +173,100 @@ class BladeGPT(nn.Module):
         loss = None
         if target is not None:
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), target.view(-1))
-        return logits
+        return logits, loss
     
 
 
+class DataLoaderLite:
+    def __init__(self, B, T):
+        self.B = B
+        self.T = T
+
+        # load tokens from disk and store them in memory, not in gpu memory
+        with open('blade-runner-2049.txt', 'r', encoding='utf-8') as f:
+            text = f.read()
+        enc = tiktoken.get_encoding('gpt2')
+        tokens = enc.encode(text)
+        self.tokens = torch.tensor(tokens)
+        print(f"loaded {len(self.tokens)} tokens")
+        print(f"1 epoch = {len(self.tokens) // (B * T)} batches")
+
+        # state
+        self.current_position = 0
+
+    def next_batch(self):
+        B, T = self.B, self.T
+        buf = self.tokens[self.current_position : self.current_position+B*T+1]
+        x = (buf[:-1]).view(B, T)
+        y = (buf[1:]).view(B, T)
+        # advance the position in the tensor
+        self.current_position += B * T
+        # if loading the next batch would be out of bounds, reset
+        if self.current_position + (B * T + 1) > len(self.tokens):
+            self.current_position = 0
+        return x, y
 
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-## Read Data
-with open('blade-runner-2049.txt', 'r', encoding='utf-8') as f:
-    text = f.read()
-
-# print(text[:1000])
-
-
-## tiktoken
-num_setence = 3
-max_length = 40
-enc = tiktoken.get_encoding('gpt2')
-tokens = enc.encode("Hello, World!. I am")
-tokens = torch.tensor(tokens, dtype=torch.long)
-tokens = tokens.unsqueeze(0).repeat(num_setence, 1)
-x = tokens.to(device)
+### old way to load data
+# with open('blade-runner-2049.txt', 'r', encoding='utf-8') as f:
+#     text = f.read()
+# text = text[:1000]
+# enc = tiktoken.get_encoding('gpt2')
 # tokens = enc.encode(text)
-print(len(tokens))
-
-# B, T = 4, 4
+# print(len(tokens))
+# B, T = 4, 32
 # buf = torch.tensor(tokens[:B*T + 1])
+# but = buf.to(device)
 # x = buf[:-1].view(B, T)
 # y = buf[1:].view(B, T)
 
-# x = x.to(device)
-# y = y.to(device)
+### temp example
+# num_setence = 3
+# max_length = 40
+# enc = tiktoken.get_encoding('gpt2')
+# tokens = enc.encode("Hello, World!. I am")
+# tokens = torch.tensor(tokens, dtype=torch.long)
+# tokens = tokens.unsqueeze(0).repeat(num_setence, 1)
+# x = tokens.to(device)
 
 
 ## Train and test split
 
 ## data loading
+train_loader = DataLoaderLite(B=4, T=32)
 
 ## initiate model and get logits
 model = BladeGPT(gptconfig())
 model.to(device)
-# logits, loss = model(x, y)
 
-# print(loss)
+## optimize
+optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
+for i in range(20):
+    x, y = train_loader.next_batch()
+    x, y = x.to(device), y.to(device)
+    optimizer.zero_grad()
+    logits, loss = model(x, y)
+    loss.backward()
+    optimizer.step()
+    print(f"step {i}, loss: {loss.item()}")
 
 
 ## Generate tokens
-torch.manual_seed(1357)
-torch.cuda.manual_seed(1357)
 
-while x.size(1) < max_length:
-    with torch.no_grad():
-        logits = model(x)
-        logits = logits[:, -1, :]
-        probs = F.softmax(logits, dim=-1)
+# while x.size(1) < max_length:
+#     with torch.no_grad():
+#         logits = model(x)
+#         logits = logits[:, -1, :]
+#         probs = F.softmax(logits, dim=-1)
 
-        topk_prob, topk_idx = torch.topk(probs, 50, dim=-1)
-        ix = torch.multinomial(topk_prob, 1)
-        xcol = torch.gather(topk_idx, -1, ix)
-        x = torch.cat((x, xcol), dim=1)
+#         topk_prob, topk_idx = torch.topk(probs, 50, dim=-1)
+#         ix = torch.multinomial(topk_prob, 1)
+#         xcol = torch.gather(topk_idx, -1, ix)
+#         x = torch.cat((x, xcol), dim=1)
 
-for i in range(num_setence):
-    tokenss = x[i, :max_length].tolist()
-    decoded = enc.decode(tokenss)
-    print(">", decoded)
+# for i in range(num_setence):
+#     tokenss = x[i, :max_length].tolist()
+#     decoded = enc.decode(tokenss)
+#     print(">", decoded)
+
 import sys; sys.exit(0)

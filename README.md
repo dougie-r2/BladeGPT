@@ -16,6 +16,10 @@ So I want to make a nano-scaled GPT for generate sentences that resemble the way
 
 ### Notes
 - Number of Batch size should be multiple of 2 with the reason of the way GPU works
+- zero_grad, backward, step
+- Don't forget the weight sharing
+- According to Xavier initialization, when we initiate weights, std should be (1/sqrt(num_features))
+- If there are residual layers, we have to also account for it by scaling the factor(1/sqrt(num_residual layer)) in weight init
 
 ### History
 - 2024/06/14 
@@ -28,7 +32,12 @@ So I want to make a nano-scaled GPT for generate sentences that resemble the way
   - Aggregate two attetion classes into one class
   - Add some assertation statements
   - Add a generating token code
-  
+
+- 2024/06/17
+  - Make a dataloader class
+  - Add optimizing training loop code
+  - Add weight sharing scheme (wte = lm_head)
+  - Add Xavier initialization and residual scale factors for init
 
 
 
