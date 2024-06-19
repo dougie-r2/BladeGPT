@@ -89,10 +89,12 @@ class MultiHeadAttention(nn.Module):
         k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
 
-        att_score = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
-        att_score = att_score.masked_fill(self.mask[:, :, :T, :T] == 0, float('-inf'))
-        wei = F.softmax(att_score, dim=-1)
-        out = wei @ v # (B, nh, T, T) @ (B, nh, T, hs) --> (B, nh, T, hs)
+        # att_score = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+        # att_score = att_score.masked_fill(self.mask[:, :, :T, :T] == 0, float('-inf'))
+        # wei = F.softmax(att_score, dim=-1)
+        # out = wei @ v # (B, nh, T, T) @ (B, nh, T, hs) --> (B, nh, T, hs)
+        out = F.scaled_dot_product_attention(q, k, v, is_causal=True) # flash attention which does the operation of 4 code lines above at once
+
         out = out.transpose(1, 2).contiguous().view(B, T, C)
         out = self.outproj(out)
         return out
@@ -244,7 +246,7 @@ train_loader = DataLoaderLite(B=16, T=512)
 ## initiate model and get logits
 model = BladeGPT(gptconfig())
 model.to(device)
-model = torch.compile(model)
+# model = torch.compile(model) # triton may not support windows
 
 ## optimize
 optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)

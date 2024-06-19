@@ -1,20 +1,36 @@
-## BladeGPT
+# BladeGPT
 
 Have you seen the movie "Blade Runner 2049" ?  
 Well, I liked the charater 'Officer K' acted by Ryan Gosling.  
 So I want to make a nano-scaled GPT for generate sentences that resemble the way officer K speaks.
 
 
-### How I feel when I start building a Model
+## How I feel when I start building a Model
 
 <img src="./imgs/bladememe.jpg" alt="drawing" width="500"/>
 
 
-### Result
+## Result
 <img src="./imgs/three-days.jpg" alt="drawing" width="500"/>
 
 
-### Notes
+## Speed Test
+<table>
+  <tr>
+    <td><img src="./imgs/Bprecision.PNG" width="350" style="display: inline" /></td>
+    <td><img src="./imgs/Aprecision.PNG" width="350" style="display: inline" /></td>
+    <td><img src="./imgs/flashattn.PNG" width="350" style="display: inline" /></td>
+  </tr>
+</table>
+
+Same input, Same batch size, Same epochs
+- Vanila : circa 1100 ms
+- After precision : circa 230 ms
+- After flash attention : circa 204 ms
+  
+*Unfortunately, I cannot use `torch.complie()`*
+
+## Notes
 - Number of Batch size should be multiple of 2 with the reason of the way GPU works
 - zero_grad, backward, step
 - Don't forget the weight sharing
@@ -23,8 +39,9 @@ So I want to make a nano-scaled GPT for generate sentences that resemble the way
 - We have to synchronize cuda with cpu when we benchmark speeds. `torch.cuda.synchronize()`
 - We can speed up the process with lower precision (TF32, bfloat16 etc.)
 - Always do `torch.compile()` default since it optimize the python code and also does kernel fusion, which operates multiple kernels or funcs with one roundtrip between GPU and HBM.
+- Flash Attention fuses kernels like compiler. We use this since the compiler cannot optimize the attention algorithm.
 
-### History
+## History
 - 2024/06/14 
   - Finish skeleton code for GPT 
   - read txt file and tokenize it
@@ -46,7 +63,7 @@ So I want to make a nano-scaled GPT for generate sentences that resemble the way
   - Add speed check codes
   - Mixed precision using `torch.autocast()` and `torch.set_float32_matmul_precision()`
   - compile the model (it does not support with python version 3.12, so I will downgrade to 3.11)
+  - Flash Attention!
 
-
-### Reference
+## Reference
 - This repo is based on Andrej Karpathy's lecture.
