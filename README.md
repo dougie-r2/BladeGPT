@@ -11,7 +11,7 @@ So I want to make a nano-scaled GPT for generate sentences that resemble the way
 
 
 ## Result
-<img src="./imgs/three-days.jpg" alt="drawing" width="500"/>
+<img src="./imgs/three-days.jpg" alt="drawing" width="300"/>
 
 
 ## Speed Test
@@ -23,11 +23,12 @@ So I want to make a nano-scaled GPT for generate sentences that resemble the way
   </tr>
 </table>
 
-Same input, Same batch size, Same epochs
+Same input, Same batch size, Same epochs  
+From Left To Right  
 - Vanila : circa 1100 ms
 - After precision : circa 230 ms
-- After flash attention : circa 204 ms
-  
+- After flash attention : circa 204 ms 
+
 *Unfortunately, I cannot use `torch.complie()`*
 
 ## Notes
@@ -64,6 +65,11 @@ Same input, Same batch size, Same epochs
   - Mixed precision using `torch.autocast()` and `torch.set_float32_matmul_precision()`
   - compile the model (it does not support with python version 3.12, so I will downgrade to 3.11)
   - Flash Attention!
+
+- 2024/06/23
+  - Gradient accumulation
+  - Save model
+  - change the txt files to Witchers
 
 ## Reference
 - This repo is based on Andrej Karpathy's lecture.
