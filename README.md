@@ -11,8 +11,15 @@ So I want to make a nano-scaled GPT for generate sentences that resemble the way
 
 
 ## Result
-<img src="./imgs/three-days.jpg" alt="drawing" width="300"/>
+Basically, the data is not big enough to train this gpt model. less than a million.  
+However I can get nice generated sentences dspite the above limitation.  
+I trained the model with the book Witcher series. I'd like to see the `Geralt of Rivia` when I prompt 'Geralt'.  
+This is the results.  
+<img src="./imgs/512emb_result.PNG" alt="drawing" width="300"/>
+<img src="./imgs/1024emb_result.PNG" alt="drawing" width="300"/>
 
+Instead, I get the `Geralt of the Witcher?`. That's fine it seems to me. :smile:  
+The lowest loss I can get is circa 5.9 nll.  
 
 ## Speed Test
 <table>
@@ -70,6 +77,10 @@ From Left To Right
   - Gradient accumulation
   - Save model
   - change the txt files to Witchers
+
+- 2024/06/25
+  - Generate text once in a while
+  - Emperical experiments on Hyperparameters
 
 ## Reference
 - This repo is based on Andrej Karpathy's lecture.

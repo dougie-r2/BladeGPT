@@ -14,11 +14,11 @@ import sys
 #hyperparameters
 @dataclass
 class gptconfig:
-    block_size: int = 1024 # maximum context length for predicitons
+    block_size: int = 512 # maximum context length for predicitons
     vocab_size: int = 50257 # number of tokens: 50,000 BPE merges + 256 bytes tokens + 1 <|endoftext|> token
-    n_layer: int = 8
-    n_head: int = 8
-    n_embed: int = 768
+    n_layer: int = 6
+    n_head: int = 4
+    n_embed: int = 512
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -214,14 +214,9 @@ class DataLoaderLite:
         self.T = T
 
         # load tokens from disk and store them in memory, not in gpu memory
-        with open('witcher_elves.txt', 'r', encoding='utf-8') as f:
+        with open('witcher_elves2.txt', 'r', encoding='utf-8') as f:
             text = f.read()
-        with open('witcher_tower.txt', 'r', encoding='utf-8') as f:
-            text2 = f.read()
-        with open('witcher_lady.txt', 'r', encoding='utf-8') as f:
-            text3 = f.read()
-
-        text = text + "\n" + text2 + "\n" + text3
+        
         enc = tiktoken.get_encoding('gpt2')
         tokens = enc.encode(text)
         self.tokens = torch.tensor(tokens)
@@ -288,8 +283,8 @@ model.to(device)
 
 max_lr = 3e-3
 min_lr = max_lr * 0.1
-warmup_step = 10
-max_steps = 19 # total number of tokens // total_batch_size ~ 1 epoch
+warmup_step = 25
+max_steps = 256 # total number of tokens // total_batch_size ~ 1 epoch
 def get_lr(it):
     # 1.Linear warmup for warmup_iters step
     if it < warmup_step:
@@ -319,7 +314,40 @@ with open(log_file, "w") as f: # open for writing to clear the file
 for step in range(max_steps):
     t0 = time.time()
     last_step = (step == max_steps - 1)
+    # once in a while generate from the model (except step 0, which is noise)
+    if step > 0 and (step % 50 == 0 or last_step):
+        model.eval()
+        num_sentence = 4
+        max_length = 40
 
+        tokens = enc.encode("Geralt")
+        tokens = torch.tensor(tokens, dtype=torch.long)
+        tokens = tokens.unsqueeze(0).repeat(num_sentence, 1)
+        xgen = tokens.to(device)
+        sample_rng = torch.Generator(device=device)
+        sample_rng.manual_seed(44)
+
+        while xgen.size(1) < max_length:
+            with torch.no_grad():
+                with torch.autocast(device_type=device, dtype=torch.bfloat16):
+                        logits, loss = model(xgen) # (B, T, vocab_size)
+                logits = logits[:, -1, :] # (B, vocab_size)
+                probs = F.softmax(logits, dim=-1)
+
+                topk_prob, topk_idx = torch.topk(probs, 50, dim=-1)
+                # select a token from the top-k probabilities
+                # note: multinomial does not demand the input to sum to 1
+                ix = torch.multinomial(topk_prob, 1, generator=sample_rng)
+                xcol = torch.gather(topk_idx, -1, ix)
+                xgen = torch.cat((xgen, xcol), dim=1)
+
+        for i in range(num_sentence):
+            tokenss = xgen[i, :max_length].tolist()
+            decoded = enc.decode(tokenss)
+            print(">", decoded)
+
+
+    model.train()
     optimizer.zero_grad()
     loss_accum = 0.0
     for micro_step in range(grad_accum_steps):
@@ -349,7 +377,7 @@ for step in range(max_steps):
     with open(log_file, "a") as f:
         f.write(f"{step} train {loss_accum.item():.6f}\n")
 
-    if step > 0 and (step % 50 == 0 or last_step):
+    if step > 0 and (step % 10 == 0 or last_step):
         # optionally write model checkpoints
         checkpoint_path = os.path.join(log_dir, f"model_{step:05d}.pt")
         checkpoint = {
@@ -364,30 +392,32 @@ for step in range(max_steps):
 
 
 ## Generate tokens
-num_sentence = 4
-max_length = 32
+# num_sentence = 4
+# max_length = 40
 
-tokens = enc.encode("What is it like to play with your dog?")
-tokens = torch.tensor(tokens, dtype=torch.long)
-tokens = tokens.unsqueeze(0).repeat(num_sentence, 1)
-xgen = tokens.to(device)
+# tokens = enc.encode("Geralt")
+# tokens = torch.tensor(tokens, dtype=torch.long)
+# tokens = tokens.unsqueeze(0).repeat(num_sentence, 1)
+# xgen = tokens.to(device)
+# sample_rng = torch.Generator(device=device)
+# sample_rng.manual_seed(44)
 
-while xgen.size(1) < max_length:
-    with torch.no_grad():
-        with torch.autocast(device_type=device, dtype=torch.bfloat16):
-                logits, loss = model(xgen) # (B, T, vocab_size)
-        logits = logits[:, -1, :] # (B, vocab_size)
-        probs = F.softmax(logits, dim=-1)
+# while xgen.size(1) < max_length:
+#     with torch.no_grad():
+#         with torch.autocast(device_type=device, dtype=torch.bfloat16):
+#                 logits, loss = model(xgen) # (B, T, vocab_size)
+#         logits = logits[:, -1, :] # (B, vocab_size)
+#         probs = F.softmax(logits, dim=-1)
 
-        topk_prob, topk_idx = torch.topk(probs, 50, dim=-1)
-        # select a token from the top-k probabilities
-        # note: multinomial does not demand the input to sum to 1
-        ix = torch.multinomial(topk_prob, 1)
-        xcol = torch.gather(topk_idx, -1, ix)
-        xgen = torch.cat((xgen, xcol), dim=1)
+#         topk_prob, topk_idx = torch.topk(probs, 50, dim=-1)
+#         # select a token from the top-k probabilities
+#         # note: multinomial does not demand the input to sum to 1
+#         ix = torch.multinomial(topk_prob, 1)
+#         xcol = torch.gather(topk_idx, -1, ix)
+#         xgen = torch.cat((xgen, xcol), dim=1)
 
-for i in range(num_sentence):
-    tokenss = xgen[i, :max_length].tolist()
-    decoded = enc.decode(tokenss)
-    print(">", decoded)
+# for i in range(num_sentence):
+#     tokenss = xgen[i, :max_length].tolist()
+#     decoded = enc.decode(tokenss)
+#     print(">", decoded)
 
