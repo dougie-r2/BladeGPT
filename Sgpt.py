@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+from torchtune.modules import RotaryPositionalEmbeddings
 import tiktoken
 from dataclasses import dataclass
 import math
@@ -79,6 +80,7 @@ class MultiHeadAttention(nn.Module):
         self.n_head = config.n_head
         self.n_embed = config.n_embed
         self.register_buffer("mask", torch.tril(torch.ones(config.block_size, config.block_size)).view(1, 1, config.block_size, config.block_size))
+        self.rotary = RotaryPositionalEmbeddings(dim=self.n_embed // self.n_head, max_seq_len=config.block_size)
 
     def forward(self, x):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
@@ -90,6 +92,10 @@ class MultiHeadAttention(nn.Module):
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+
+        # apply rotary embedding
+        q = self.rotary(q)
+        k = self.rotary(k)
 
         # att_score = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
         # att_score = att_score.masked_fill(self.mask[:, :, :T, :T] == 0, float('-inf'))

@@ -1,9 +1,8 @@
 # BladeGPT
 
-Have you seen the movie "Blade Runner 2049" ?  
-Well, I liked the charater 'Officer K' acted by Ryan Gosling.  
-So I want to make a nano-scaled GPT for generate sentences that resemble the way officer K speaks.
-
+Have you seen the book or drama "The Witcher" ?  
+Well, I liked the games and played it very amusingly.
+So I want to make a nano-scaled GPT for generate sentences about witchers.
 
 ## How I feel when I start building a Model
 
@@ -12,8 +11,8 @@ So I want to make a nano-scaled GPT for generate sentences that resemble the way
 
 ## Result
 Basically, the data is not big enough to train this gpt model. less than a million.  
-However I can get nice generated sentences dspite the above limitation.  
-I trained the model with the book Witcher series. I'd like to see the `Geralt of Rivia` when I prompt 'Geralt'.  
+However I can get nice generated sentences dispite the above limitation.  
+I trained the model with the book **The Witcher** series. I'd like to see the `Geralt of Rivia` when I prompt 'Geralt'.  
 This is the results.  
 <img src="./imgs/512emb_result.PNG" alt="drawing" width="300"/>
 <img src="./imgs/1024emb_result.PNG" alt="drawing" width="300"/>
@@ -81,6 +80,9 @@ From Left To Right
 - 2024/06/25
   - Generate text once in a while
   - Emperical experiments on Hyperparameters
+
+- 2024/06/26
+  - Rotary Positional Embedding
 
 ## Reference
 - This repo is based on Andrej Karpathy's lecture.
