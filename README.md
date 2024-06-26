@@ -17,7 +17,7 @@ This is the results.
 <img src="./imgs/512emb_result.PNG" alt="drawing" width="300"/>
 <img src="./imgs/1024emb_result.PNG" alt="drawing" width="300"/>
 
-Instead, I get the `Geralt of the Witcher?`. That's fine it seems to me. :smile:  
+Instead, I get the `Geralt of the Witcher?`. It seems fine to me. :smile:  
 The lowest loss I can get is circa 5.9 nll.  
 
 ## Speed Test
